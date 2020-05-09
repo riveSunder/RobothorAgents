@@ -16,7 +16,7 @@ obs, reward, done, info = env.step(action)
 The action space is discrete so I implemented a DQN training loop [here](https://github.com/riveSunder/RobothorAgents/blob/master/robothor_agents/dqn.py) for gathering experience buffers. Simulation in this environment is somewhat slow, but it produces a significant amount of additional data. My approach so far is to use these additional data for off-task training. Some of the data for off-task training is shown below:
 
 <div align="center">
-    <img src="assets/RGBInput.png">
+    <img src="assets/RGBInput.png"><br>
     <em>Also included as task-specific input, but is used for autoencoding off-task training</em>
     <img src="assets/DepthTarget.png">
     <img src="assets/SegTarget.png">
