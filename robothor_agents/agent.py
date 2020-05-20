@@ -312,7 +312,7 @@ class SegmentationModel(MyTempAgent):
 
 class OffTaskModel(MyTempAgent):
 
-    def __init__(self, conv_depth=16):
+    def __init__(self, conv_depth=32):
         super(OffTaskModel, self).__init__()
 
     def init_head(self):

@@ -1,8 +1,9 @@
 
-import robothor_challenge
+#import robothor_challenge
+
 from robothor_challenge import RobothorChallenge
-from robothor_challenge.agent import SimpleRandomAgent
-from robothor_challenge.agent import MyTempAgent
+from robothor_agents.agent import SimpleRandomAgent
+from robothor_agents.agent import MyTempAgent
 
 import ai2thor.controller
 import ai2thor.util.metrics
@@ -86,8 +87,12 @@ class RobothorChallengeEnv(RobothorChallenge):
                 for target in self.possible_targets]
 
         obs["class_labels"] = np.array(my_class_labels) * 1.0
+        info = event.metadata
 
-        return obs
+        info["target_nearby"] = False
+
+
+        return obs, info
 
 
     def step(self, action ):
@@ -125,7 +130,7 @@ class RobothorChallengeEnv(RobothorChallenge):
         reward += 0.01
 
         done = stopped or self.total_steps >= self.config['max_steps']
-        info = {}
+
 
         my_class_labels = [np.array([target.lower() in elem["name"].lower() and elem["visible"] \
                 for elem in event.metadata["objects"]]).any() \
@@ -133,7 +138,28 @@ class RobothorChallengeEnv(RobothorChallenge):
 
         obs["class_labels"] = np.array(my_class_labels) * 1.0
 
+        # give out extra info
+        info = event.metadata
+        info["target_nearby"] = self.target_nearby(info, obs)
+
         return obs, reward, done, info
+
+    def target_nearby(self, info, obs):
+
+        target_nearby = False
+
+        for my_object in info["objects"]:
+
+            # below is to avoid conflating e.g. "Baseball" with "BaseballBat"
+            object_name = my_object["name"].split("_")[0].lower()
+
+            if obs["object_goal"].lower() is object_name:
+                import pdb; pdb.set_trace()
+                #object matches target. Check if it is in view and nearby
+                if my_object["visible"] and my_object["distance"] <= 1.0:
+                    target_nearby = True
+
+        return target_nearby
 
     def sample_action_space(self):
         pass

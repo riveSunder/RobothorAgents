@@ -1,7 +1,7 @@
-import robothor_challenge
-from robothor_challenge.env import RobothorChallengeEnv
-from robothor_challenge.agent import SimpleRandomAgent
-from robothor_challenge.agent import MyTempAgent
+#import robothor_challenge
+from robothor_agents.env import RobothorChallengeEnv
+from robothor_agents.agent import SimpleRandomAgent
+from robothor_agents.agent import MyTempAgent, OffTaskModel
 
 import numpy as np
 
@@ -40,7 +40,7 @@ class DQN():
         # some training parameters
         self.lr = 1e-3
         self.batch_size = 64
-        self.buffer_size = 16384 #4096 #4096
+        self.buffer_size = 4096 #4096
         self.epsilon_decay = 0.75
         self.starting_epsilon = 0.99
         self.epsilon = self.starting_epsilon * 1.0
@@ -103,7 +103,8 @@ class DQN():
                 if done:
                     self.q.reset()
 
-                    observation = env.reset(get_depth_frame=self.get_depth_frame,\
+
+                    observation, info = env.reset(get_depth_frame=self.get_depth_frame,\
                             get_class_frame=self.get_class_frame,\
                             get_object_frame=self.get_object_frame)
 
@@ -131,6 +132,13 @@ class DQN():
                         import pdb; pdb.set_trace()
                     action = ALLOWED_ACTIONS[torch.argmax(q_values)]
                     act = 1.0*torch.argmax(q_values).unsqueeze(0)
+
+                # check to see if target object is nearby, if so, stop (teacher signal)
+                if info["target_nearby"]:
+                    action = "Stop"
+
+
+
 
                 prev_obs = obs
                 observation, reward, done, info = self.env.step(action)
@@ -223,6 +231,9 @@ class DQN():
         self.rewards = []
         self.losses = []
 
+        exp_id = str(time.time())[:-3]
+        smooth_loss = 10.0
+
         for epoch in range(max_epochs):
 
             self.q.zero_grad()
@@ -232,6 +243,8 @@ class DQN():
                     l_class_labels, l_depth_frame, \
                     l_class_frame, l_object_frame = self.get_episodes(steps=self.buffer_size)
 
+
+            self.rewards.append(np.mean(l_rew.detach().numpy()))
             for batch in range(0,self.buffer_size-self.batch_size, self.batch_size):
 
                 loss = self.compute_q_loss(l_obs_x[batch:batch+self.batch_size],\
@@ -243,9 +256,11 @@ class DQN():
                         l_done[batch:batch+self.batch_size])
 
                 loss.backward()
+                smooth_loss = 0.9 * smooth_loss + 0.1 * loss.detach().numpy()
 
                 optimizer.step()
 
+            self.losses.append(smooth_loss)
             print("loss at epoch {}: {:.3e} epsilon {:.2e}".format(epoch, loss, self.epsilon))
 
             # update target network every once in a while
@@ -273,6 +288,9 @@ class DQN():
 
             torch.save(my_save, "./data/trajectories_{}_{}.pt".format(\
                     self.buffer_size, timestamp))
+            
+            np.save("./logs/losses_{}.npy".format(exp_id), self.losses)
+            np.save("./logs/rewards_{}.npy".format(exp_id), self.rewards)
 
             for my_buffer in [l_obs_x, l_obs_one_hot, l_rew, l_act, l_next_obs_x, \
                     l_next_obs_one_hot,\
@@ -286,12 +304,18 @@ class DQN():
 if __name__ == "__main__":
     agent_fn = MyTempAgent
     agent = MyTempAgent()
+
+    pretrained = OffTaskModel()
+    pretrained.load_state_dict(torch.load("temp_off_task_model.pt"))
+    agent.feature_extractor.load_state_dict(pretrained.feature_extractor.state_dict())
     env = RobothorChallengeEnv(agent=agent)
     dqn = DQN(env, agent_fn)
 
 
-    dqn.train(max_epochs = 5)
-    import pdb; pdb.set_trace()
+    try:
+        dqn.train(max_epochs = 100)
+    except KeyboardInterrupt:
+        import pdb; pdb.set_trace()
 
     torch.save(dqn.q.state_dict(),"./my_dqn_temp.pt")
         

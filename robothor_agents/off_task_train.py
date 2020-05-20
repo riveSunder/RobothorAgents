@@ -46,7 +46,12 @@ def train():
         device = torch.device("cpu")
 
     off_task_model = OffTaskModel()
-
+    
+    if(1):
+        model_fn = "./temp_off_task_model.pt"
+        off_task_model.load_state_dict(torch.load(model_fn))
+        import pdb; pdb.set_trace()
+    
     optimizer = torch.optim.Adam(off_task_model.parameters(), lr=lr)
     
     t0 = time.time()
@@ -79,7 +84,7 @@ def train():
 
             loss_depth = w_depth * loss_fn_depth(y_depth.squeeze(), y_tgt_d)
             loss_auto = w_auto * loss_fn_depth(y_auto, x)
-            loss_seg = w_seg * loss_fn_depth(y_seg, x)
+            loss_seg = w_seg * loss_fn_depth(y_seg, y_tgt_s)
             loss_class = w_class * loss_fn_class(y_class, y_tgt_c)
 
             loss = loss_depth + loss_auto + loss_seg + loss_class
