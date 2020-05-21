@@ -90,7 +90,7 @@ class RobothorChallengeEnv(RobothorChallenge):
         info = event.metadata
 
         info["target_nearby"] = False
-
+        info["advice"] = None 
 
         return obs, info
 
@@ -123,7 +123,7 @@ class RobothorChallengeEnv(RobothorChallenge):
 
         simobj = self.controller.last_event.get_object(self.episode['object_id'])
         if simobj['visible']: 
-            reward += 0.1
+            reward += 0.01
             #print('Target object visible!!!')
 
         # reward for keeping on
@@ -141,6 +141,7 @@ class RobothorChallengeEnv(RobothorChallenge):
         # give out extra info
         info = event.metadata
         info["target_nearby"] = self.target_nearby(info, obs)
+        info["advice"] = None if info["target_nearby"] else self.get_advice(info, obs)
 
         return obs, reward, done, info
 
@@ -153,13 +154,32 @@ class RobothorChallengeEnv(RobothorChallenge):
             # below is to avoid conflating e.g. "Baseball" with "BaseballBat"
             object_name = my_object["name"].split("_")[0].lower()
 
-            if obs["object_goal"].lower() is object_name:
-                import pdb; pdb.set_trace()
+            if obs["object_goal"].lower() == object_name:
                 #object matches target. Check if it is in view and nearby
                 if my_object["visible"] and my_object["distance"] <= 1.0:
                     target_nearby = True
 
         return target_nearby
+    
+    def get_advice(self, info, obs):
+        
+        advice = None
+        for my_object in info["objects"]:
+
+            # below is to avoid conflating e.g. "Baseball" with "BaseballBat"
+            object_name = my_object["name"].split("_")[0].lower()
+
+            if obs["object_goal"].lower() == object_name:
+                #object matches target. Check if it is in view and nearby
+                if my_object["visible"] and my_object["distance"] >= 1.0:
+
+                    advice = "MoveAhead"
+
+                elif not(my_object["visible"]) and my_object["distance"] < 1.5:
+
+                    advice = "RotateRight" 
+
+        return advice
 
     def sample_action_space(self):
         pass

@@ -133,10 +133,16 @@ class DQN():
                     action = ALLOWED_ACTIONS[torch.argmax(q_values)]
                     act = 1.0*torch.argmax(q_values).unsqueeze(0)
 
+
+                
                 # check to see if target object is nearby, if so, stop (teacher signal)
                 if info["target_nearby"]:
                     action = "Stop"
-
+                elif info["advice"] is not None:
+                    # get advice from environment if we are close to target
+                    # but don't blindly follow advice. Follow it randomly.
+                    if np.random.random() < min([self.epsilon*3, 0.5]):
+                        action = info["advice"]
 
 
 
