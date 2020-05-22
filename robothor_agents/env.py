@@ -45,6 +45,8 @@ class RobothorChallengeEnv(RobothorChallenge):
         if (get_depth_frame or get_class_frame or get_object_frame) and self.uninitialized:
 
 
+
+            self.controller.stop()
             self.setup_env()
             self.controller = ai2thor.controller.Controller(
                 width=self.config['width'],
@@ -127,7 +129,7 @@ class RobothorChallengeEnv(RobothorChallenge):
             #print('Target object visible!!!')
 
         # reward for keeping on
-        reward += 0.01
+        reward -= 0.001
 
         done = stopped or self.total_steps >= self.config['max_steps']
 

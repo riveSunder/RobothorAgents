@@ -11,6 +11,7 @@ import torch.nn.functional as F
 import copy
 
 import time
+import os
 
 import matplotlib.pyplot as plt
 
@@ -41,7 +42,7 @@ class DQN():
         self.lr = 1e-3
         self.batch_size = 64
         self.buffer_size = 4096 #4096
-        self.epsilon_decay = 0.75
+        self.epsilon_decay = 0.95
         self.starting_epsilon = 0.99
         self.epsilon = self.starting_epsilon * 1.0
         self.min_epsilon = 0.05
@@ -122,7 +123,7 @@ class DQN():
                     done = False
 
                 if torch.rand(1) < self.epsilon:
-                    act = np.random.randint(len(ALLOWED_ACTIONS))
+                    act = np.random.randint(len(ALLOWED_ACTIONS)-1)
                     action = ALLOWED_ACTIONS[act]
                     act = torch.Tensor(np.array(1.0*act)).unsqueeze(0)
                 else:
@@ -198,7 +199,8 @@ class DQN():
                         torch.Tensor(observation["class_labels"]).unsqueeze(0)], dim=0)
 
 
-            print(torch.sum(l_rew)/ torch.sum(l_done))
+            print("number of episodes {} with max/mean reward {:.2f}/{:.2f}"\
+                    .format(torch.sum(l_done), torch.max(l_rew), torch.sum(l_rew)/torch.sum(l_done)))
             return l_obs_x, l_obs_one_hot, l_rew, l_act,\
                     l_next_obs_x, l_next_obs_one_hot, l_done, \
                     l_class_labels, l_depth_frame, l_class_frame, l_object_frame
@@ -240,8 +242,11 @@ class DQN():
         exp_id = str(time.time())[:-3]
         smooth_loss = 10.0
 
+        t0 = time.time()
+
         for epoch in range(max_epochs):
 
+            t1 = time.time()
             self.q.zero_grad()
 
             l_obs_x, l_obs_one_hot, l_rew, l_act, l_next_obs_x, \
@@ -251,23 +256,64 @@ class DQN():
 
 
             self.rewards.append(np.mean(l_rew.detach().numpy()))
-            for batch in range(0,self.buffer_size-self.batch_size, self.batch_size):
 
-                loss = self.compute_q_loss(l_obs_x[batch:batch+self.batch_size],\
-                        l_obs_one_hot[batch:batch+self.batch_size], \
-                        l_rew[batch:batch+self.batch_size], \
-                        l_act[batch:batch+self.batch_size],\
-                        l_next_obs_x[batch:batch+self.batch_size], \
-                        l_next_obs_one_hot[batch:batch+self.batch_size], \
-                        l_done[batch:batch+self.batch_size])
 
-                loss.backward()
-                smooth_loss = 0.9 * smooth_loss + 0.1 * loss.detach().numpy()
+            #save trajectories
+            timestamp = str(time.time())[:-3]
 
-                optimizer.step()
+            my_save = {"l_obs_x": l_obs_x,\
+                    "l_obs_one_hot": l_obs_one_hot,\
+                    "l_rew": l_rew,\
+                    "l_act": l_act,\
+                    "l_next_obs_x": l_next_obs_x,\
+                    "l_next_obs_one_hot": l_next_obs_one_hot,\
+                    "l_done": l_done}
+            
+            my_save["l_depth_frame"] = l_depth_frame
+            my_save["l_class_frame"] = l_class_frame.to(torch.int8)
+            my_save["l_object_frame"] = l_object_frame
+            my_save["l_class_labels"] = l_class_labels
+
+            torch.save(my_save, "./data/trajectories_{}_{}.pt".format(\
+                    self.buffer_size, timestamp))
+            
+            dir_list = os.listdir("./data")
+
+            # train on all previous experience each time
+            t2 = time.time()
+            for my_file in dir_list:
+
+                dataset = torch.load("./data/"+my_file)
+                l_obs_x = dataset["l_obs_x"]
+                l_obs_one_hot = dataset["l_obs_one_hot"]
+                l_rew = dataset["l_rew"]
+                l_act = dataset["l_act"]
+                l_next_obs_x = dataset["l_next_obs_x"]
+                l_next_obs_one_hot = dataset["l_next_obs_one_hot"]
+                l_done = dataset["l_done"]
+
+
+                for batch in range(0,self.buffer_size-self.batch_size, self.batch_size):
+
+                    loss = self.compute_q_loss(l_obs_x[batch:batch+self.batch_size],\
+                            l_obs_one_hot[batch:batch+self.batch_size], \
+                            l_rew[batch:batch+self.batch_size], \
+                            l_act[batch:batch+self.batch_size],\
+                            l_next_obs_x[batch:batch+self.batch_size], \
+                            l_next_obs_one_hot[batch:batch+self.batch_size], \
+                            l_done[batch:batch+self.batch_size])
+
+                    loss.backward()
+                    smooth_loss = 0.9 * smooth_loss + 0.1 * loss.detach().numpy()
+
+                    optimizer.step()
 
             self.losses.append(smooth_loss)
-            print("loss at epoch {}: {:.3e} epsilon {:.2e}".format(epoch, loss, self.epsilon))
+            t3 = time.time()
+            print("timing simulator: {:.1f} learning: {:.1f} total: {:.1f} s"\
+                    .format(t2-t1, t3-t2, t3-t0))
+            print("loss at epoch {}: {:.3e} epsilon {:.2e}"\
+                    .format(epoch, loss, self.epsilon))
 
             # update target network every once in a while
             if epoch % self.update_qt_every == 0:
@@ -277,23 +323,6 @@ class DQN():
                 for param in self.qt.parameters():
                     param.requires_grad = False
             
-            timestamp = str(time.time())[:-3]
-
-            my_save = {"l_obs_x": l_obs_x.to(torch.int8),\
-                    "l_obs_one_hot": l_obs_one_hot.to(torch.int8),\
-                    "l_rew": l_rew,\
-                    "l_act": l_act.to(torch.int8),\
-                    "l_next_obs_x": l_next_obs_x.to(torch.int8),\
-                    "l_next_obs_one_hot": l_next_obs_one_hot.to(torch.int8),\
-                    "l_done": l_done.to(torch.int8)}
-            
-            my_save["l_depth_frame"] = l_depth_frame
-            my_save["l_class_frame"] = l_class_frame.to(torch.int8)
-            my_save["l_object_frame"] = l_object_frame
-            my_save["l_class_labels"] = l_class_labels
-
-            torch.save(my_save, "./data/trajectories_{}_{}.pt".format(\
-                    self.buffer_size, timestamp))
             
             np.save("./logs/losses_{}.npy".format(exp_id), self.losses)
             np.save("./logs/rewards_{}.npy".format(exp_id), self.rewards)
