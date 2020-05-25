@@ -41,9 +41,9 @@ class DQN():
         # some training parameters
         self.lr = 1e-3
         self.batch_size = 64
-        self.buffer_size = 4096 #4096
+        self.buffer_size = 128 #4096
         self.epsilon_decay = 0.95
-        self.starting_epsilon = 0.99
+        self.starting_epsilon = 0.09
         self.epsilon = self.starting_epsilon * 1.0
         self.min_epsilon = 0.05
         self.update_qt_every = 4
@@ -98,6 +98,7 @@ class DQN():
 
         # interaction loop
         done = True
+        l_info = []
         with torch.no_grad():
             for step in range(steps):
 
@@ -145,6 +146,9 @@ class DQN():
                     if np.random.random() < min([self.epsilon*3, 0.5]):
                         action = info["advice"]
 
+                # remember info (including metadata) so we can 
+                # implement hindsight experience replay during off-policy training
+                l_info.append(info)
 
 
                 prev_obs = obs
@@ -203,7 +207,8 @@ class DQN():
                     .format(torch.sum(l_done), torch.max(l_rew), torch.sum(l_rew)/torch.sum(l_done)))
             return l_obs_x, l_obs_one_hot, l_rew, l_act,\
                     l_next_obs_x, l_next_obs_one_hot, l_done, \
-                    l_class_labels, l_depth_frame, l_class_frame, l_object_frame
+                    l_class_labels, l_depth_frame, l_class_frame,\
+                    l_object_frame, l_info
 
     def compute_q_loss(self, t_obs_x, t_obs_one_hot, t_rew, t_act,\
             t_next_obs_x, t_next_obs_one_hot, t_done, double_dqn=True):
@@ -252,7 +257,7 @@ class DQN():
             l_obs_x, l_obs_one_hot, l_rew, l_act, l_next_obs_x, \
                     l_next_obs_one_hot, l_done, \
                     l_class_labels, l_depth_frame, \
-                    l_class_frame, l_object_frame = self.get_episodes(steps=self.buffer_size)
+                    l_class_frame, l_object_frame, l_info = self.get_episodes(steps=self.buffer_size)
 
 
             self.rewards.append(np.mean(l_rew.detach().numpy()))
@@ -267,14 +272,15 @@ class DQN():
                     "l_act": l_act,\
                     "l_next_obs_x": l_next_obs_x,\
                     "l_next_obs_one_hot": l_next_obs_one_hot,\
-                    "l_done": l_done}
+                    "l_done": l_done,\
+                    "l_info": l_info}
             
             my_save["l_depth_frame"] = l_depth_frame
             my_save["l_class_frame"] = l_class_frame.to(torch.int8)
             my_save["l_object_frame"] = l_object_frame
             my_save["l_class_labels"] = l_class_labels
 
-            torch.save(my_save, "./data/trajectories_{}_{}.pt".format(\
+            torch.save(my_save, "./data/trajectories_winfo_{}_{}.pt".format(\
                     self.buffer_size, timestamp))
             
             dir_list = os.listdir("./data")
