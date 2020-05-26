@@ -28,35 +28,66 @@ class SimpleRandomAgent(Agent):
         action = random.choice(['MoveAhead', 'MoveBack', 'RotateRight', 'RotateLeft', 'LookUp', 'LookDown', 'Stop'])
         return action
 
-#class RandomDistillateNetwork(nn.Module):
-#
-#    def __init__(self):
-#        super(RandomDistillateNetwork, self).__init__()
-#        pass
-#
-#
-#class AgentPolicy(nn.Module):
-#
-#    def __init__(self):
-#        super(AgentPolicy, self).__init__() 
-#        
-#
-#
-#        self.block0 = nn.Sequential([nn.Conv2D])
 
-#
-#    def forward(self, x, one_hot=None, mode="pre"):
-#        
-#        # calculate action or depth, segmentation, and classification if pre-training
-#
-#        if mode == "pre":
-#            pass
-#            #return classes, segmentation, depth_map
-#
-#        elif mode == "act":
-#            assert one_hot is not None, "Need to specify goal object"
-#            pass
-#            #return act
+class RandomNetwork(nn.Module):
+
+    def __init__(self):
+        super(RandomNetwork, self).__init__()
+
+        #dense_in = 640*480*3
+        dense_in = 320*240*3
+        dense_hid = 128
+        dense_out = 64
+        self.lr=3e-4
+
+        self.random_network = nn.Sequential(\
+                nn.Linear(dense_in, dense_hid),\
+                nn.Tanh(),\
+                nn.Linear(dense_hid, dense_out))
+        
+        for param in self.random_network:
+           param.requires_grad = True
+
+
+        self.distiller = nn.Sequential(\
+                nn.Linear(dense_in, dense_hid*2),\
+                nn.Tanh(),\
+                nn.Linear(dense_hid*2, dense_hid*2),\
+                nn.Tanh(),\
+                nn.Linear(dense_hid*2, dense_out))
+
+        for param in self.distiller:
+
+            param.requires_grad = True
+
+        self.optimizer = torch.optim.Adam(self.distiller.parameters(), lr=self.lr) 
+        #optimizer = torch.optim.Adam(self.q.parameters(), lr=self.lr)
+        
+    def forward_rn(self,x):
+        
+        return self.random_network(x)
+
+    def forward(self,x):
+
+        return self.distiller(x)
+
+    def get_rnd_reward(self,x):
+
+        self.zero_grad()
+
+        loss_fn = torch.nn.MSELoss()
+
+        tgt = self.forward_rn(x)
+
+        pred = self.forward(x)
+
+        loss = loss_fn(tgt,pred) #torch.mean(torch.pow(tgt - pred, 2))
+
+        loss.backward()
+
+        self.optimizer.step()
+
+        return loss.detach()
 
 
 class MyTempAgent(Agent, nn.Module):
@@ -449,6 +480,14 @@ if __name__ == "__main__":
 
     print(temp_res.shape)
 
-    temp_depth, temp_seg, temp_classes = off_task(temp)
 
-    print(temp_depth.shape, temp_seg.shape, temp_classes.shape)
+
+    rnd = RandomNetwork()
+
+    a = torch.randn(1024, 320*240*3)
+    for step in range(100):
+
+        rnd_reward = rnd.get_rnd_reward(a[:256])
+
+        print(rnd_reward)
+

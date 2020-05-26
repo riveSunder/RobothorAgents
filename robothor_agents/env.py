@@ -16,6 +16,8 @@ import torch.nn as nn
 
 ALLOWED_ACTIONS =  ['MoveAhead', 'MoveBack', 'RotateRight', 'RotateLeft', 'LookUp', 'LookDown', 'Stop']
 
+
+
 class RobothorChallengeEnv(RobothorChallenge):
 
 

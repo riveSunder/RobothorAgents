@@ -1,7 +1,7 @@
 #import robothor_challenge
 from robothor_agents.env import RobothorChallengeEnv
 from robothor_agents.agent import SimpleRandomAgent
-from robothor_agents.agent import MyTempAgent, OffTaskModel
+from robothor_agents.agent import MyTempAgent, OffTaskModel, RandomNetwork
 
 import numpy as np
 
@@ -21,9 +21,14 @@ ALLOWED_ACTIONS =  ['MoveAhead', 'MoveBack', 'RotateRight', 'RotateLeft', 'LookU
 
 class DQN():
 
-    def __init__(self, env, agent_fn):
+    def __init__(self, env, agent_fn, use_rnd=False):
 
         self.env = env
+        self.use_rnd = use_rnd
+
+        if self.use_rnd:
+            self.rnd_scale = 1e-1
+            self.rnd = RandomNetwork()
 
         self.possible_targets = ['Alarm Clock', \
                             'Apple',\
@@ -39,9 +44,9 @@ class DQN():
                             'Vase']
 
         # some training parameters
-        self.lr = 1e-3
+        self.lr = 3e-4
         self.batch_size = 64
-        self.buffer_size = 128 #4096
+        self.buffer_size = 4096
         self.epsilon_decay = 0.95
         self.starting_epsilon = 0.09
         self.epsilon = self.starting_epsilon * 1.0
@@ -56,7 +61,6 @@ class DQN():
 
         # train on this device
         if (1):
-
             self.device = torch.device("cpu")
         else:
             self.device = torch.device("cuda")
@@ -78,6 +82,18 @@ class DQN():
         x = F.avg_pool2d(x, 2)
 
         return x
+
+    def get_rnd_reward(self, obs):
+
+        with torch.enable_grad():
+
+            obs = obs.flatten(start_dim=1)
+            obs.requires_grad = True
+
+            rnd_reward = self.rnd.get_rnd_reward(obs[0])
+
+
+        return rnd_reward.detach()
 
     def get_episodes(self, steps=128):
 
@@ -150,9 +166,9 @@ class DQN():
                 # implement hindsight experience replay during off-policy training
                 l_info.append(info)
 
-
                 prev_obs = obs
                 observation, reward, done, info = self.env.step(action)
+
                 target_str = observation["object_goal"]
 
                 target_one_hot = torch.Tensor(\
@@ -171,7 +187,11 @@ class DQN():
 
                 obs[0] = self.pre_process(obs[0])
 
-
+                #use random network distillation
+                if self.use_rnd:
+                    rnd_reward = self.get_rnd_reward(obs[0])
+                    reward += self.rnd_scale * rnd_reward
+    
 
                 l_obs_x = torch.cat([l_obs_x, prev_obs[0]], dim=0)
                 l_obs_one_hot = torch.cat([l_obs_one_hot, prev_obs[1]], dim=0)
@@ -350,11 +370,19 @@ if __name__ == "__main__":
     pretrained.load_state_dict(torch.load("temp_off_task_model.pt"))
     agent.feature_extractor.load_state_dict(pretrained.feature_extractor.state_dict())
     env = RobothorChallengeEnv(agent=agent)
-    dqn = DQN(env, agent_fn)
+    dqn = DQN(env, agent_fn, use_rnd=True)
 
 
+    rnd = RandomNetwork()
+
+    a = torch.randn(1024, 320*240*3)
+#    for step in range(10):
+#
+#        rnd_reward = dqn.rnd.get_rnd_reward(a[:256])
+#
+#        print(rnd_reward)
     try:
-        dqn.train(max_epochs = 100)
+        dqn.train(max_epochs = 50)
     except KeyboardInterrupt:
         import pdb; pdb.set_trace()
 
