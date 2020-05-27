@@ -76,10 +76,13 @@ class DQN():
         for param in self.qt.parameters():
             param.requires_grad = False
 
-    def pre_process(self, x):
+    def pre_process(self, x, norm_max = None):
         # for now just scale the images down to a friendlier size
         # 
         x = F.avg_pool2d(x, 2)
+
+        if norm_max is not None:
+            x /= norm_max
 
         return x
 
@@ -136,11 +139,9 @@ class DQN():
                     obs = [torch.Tensor(observation["rgb"].copy())\
                             .unsqueeze(0).permute(0,3,1,2),\
                             target_one_hot]
-                    obs[0] = self.pre_process(obs[0])
+                    obs[0] = self.pre_process(obs[0], 255.0)
                     done = False
 
-                    # investigate observation data here
-                    import pdb; pdb.set_trace()
 
                 if torch.rand(1) < self.epsilon:
                     act = np.random.randint(len(ALLOWED_ACTIONS)-1)
@@ -188,7 +189,7 @@ class DQN():
                     print("dimensional problem?")
                     import pdb; pdb.set_trace()
 
-                obs[0] = self.pre_process(obs[0])
+                obs[0] = self.pre_process(obs[0], 255.0)
 
                 #use random network distillation
                 if self.use_rnd:
@@ -206,20 +207,21 @@ class DQN():
 
 
                 if self.get_depth_frame:
-                    temp = self.pre_process(torch.Tensor(observation["depth"].copy()).unsqueeze(0))
+                    temp = self.pre_process(torch.Tensor(observation["depth"].copy()).unsqueeze(0), 25.0)
 
                     l_depth_frame = torch.cat([l_depth_frame, temp], dim=0)
 
                 if self.get_class_frame:
 
                     temp = self.pre_process(torch.Tensor(observation["class_frame"]\
-                            .copy()).unsqueeze(0).permute(0,3,1,2))
+                            .copy()).unsqueeze(0).permute(0,3,1,2), 255.0)
 
                     l_class_frame = torch.cat([l_class_frame, temp], dim=0)
 
                 if self.get_object_frame:
+                    # not currently reaching this code (probably won't use this object_frame for the contest)
                     temp = self.pre_process(torch.Tensor(observation["object_frame"]\
-                            .copy()).unsqueeze(0))
+                            .copy()).unsqueeze(0), 255.0)
                     l_object_frame = torch.cat([l_object_frame, temp], dim=0)
 
                 l_class_labels = torch.cat([l_class_labels,\
