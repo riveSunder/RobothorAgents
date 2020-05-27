@@ -48,7 +48,7 @@ class DQN():
         self.batch_size = 64
         self.buffer_size = 4096
         self.epsilon_decay = 0.95
-        self.starting_epsilon = 0.09
+        self.starting_epsilon = 0.99
         self.epsilon = self.starting_epsilon * 1.0
         self.min_epsilon = 0.05
         self.update_qt_every = 4
@@ -129,7 +129,7 @@ class DQN():
                     target_str = observation["object_goal"]
 
                     target_one_hot = torch.Tensor(\
-                            np.array([1.0 if target_str in elem else 0.0 \
+                            np.array([1.0 if "".join(target_str.split()).lower() in "".join(elem.split()).lower() else 0.0 \
                             for elem in self.q.possible_targets]))\
                             .reshape(1,12)
 
@@ -138,6 +138,9 @@ class DQN():
                             target_one_hot]
                     obs[0] = self.pre_process(obs[0])
                     done = False
+
+                    # investigate observation data here
+                    import pdb; pdb.set_trace()
 
                 if torch.rand(1) < self.epsilon:
                     act = np.random.randint(len(ALLOWED_ACTIONS)-1)
@@ -172,7 +175,7 @@ class DQN():
                 target_str = observation["object_goal"]
 
                 target_one_hot = torch.Tensor(\
-                        np.array([1.0 if target_str in elem else 0.0 \
+                        np.array([1.0 if "".join(target_str.split()).lower() in "".join(elem.split()).lower() else 0.0 \
                         for elem in self.q.possible_targets]))\
                         .reshape(1,12)
 
