@@ -121,7 +121,11 @@ class RobothorChallengeEnv(RobothorChallenge):
         if stopped:
             simobj = self.controller.last_event.get_object(self.episode['object_id'])
             reward = 10.0 * simobj['visible']
-            if reward == 10.0: print("winner!")
+            if reward == 10.0:
+                print("winner!")
+            else: 
+                #penalty for quitting without finding target object
+                reward = -1.0
         else:
             reward = 0.0
 
