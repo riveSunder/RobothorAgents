@@ -9,7 +9,7 @@ import copy
 
 import matplotlib.pyplot as plt
 
-from robothor_challenge.agent import OffTaskModel
+from robothor_agents.agent import OffTaskModel
 
 def load_dataset(path, dir_list):
     
@@ -20,6 +20,34 @@ def load_dataset(path, dir_list):
     return data
 
     
+def get_accuracy(y_tgt, y_pred):
+
+    # decision boundary at 0.5
+    y_pred = y_pred > 0.5
+
+    tp = 0
+    fp = 0
+    tn = 0
+    fn =  0
+
+    for sample in range(y_tgt.shape[0]):
+        
+        tp += np.sum([elem1 and elem2 for elem1, elem2 in zip(y_tgt[sample], y_pred[sample])])
+        tn += np.sum([not(elem1) and not(elem2) for elem1, elem2 in zip(y_tgt[sample], y_pred[sample])])
+        fn += np.sum([elem1 and not(elem2) for elem1, elem2 in zip(y_tgt[sample], y_pred[sample])])
+        fp += np.sum([not(elem1) and elem2 for elem1, elem2 in zip(y_tgt[sample], y_pred[sample])])
+
+
+    print(tp, tn, fn, fp)
+    accuracy = (tp+tn) / (tp+tn+fn+fp)
+
+    # compute recall and precision backwards (often denominator would be 0 from perspective of positives)
+    recall = (tn) / (tn+fp)
+
+    precision = (tn) / (tn+fn)
+
+    return accuracy, recall, precision
+
 def train(): 
 
     my_path = os.path.join(os.path.abspath(os.path.dirname(__file__)), "../data/")
@@ -47,7 +75,7 @@ def train():
 
     off_task_model = OffTaskModel()
     
-    if(1):
+    if(0):
         model_fn = "./temp_off_task_model.pt"
         off_task_model.load_state_dict(torch.load(model_fn))
         import pdb; pdb.set_trace()
@@ -63,7 +91,8 @@ def train():
         dataset = load_dataset(my_path, dir_list)
 
         for key in dataset.keys():
-            dataset[key] = dataset[key].to(torch.float32)
+            if "info" not in key:
+                dataset[key] = dataset[key].to(torch.float32)
 
         epoch_size = dataset["l_next_obs_x"].shape[0]
         smooth_loss = 0.0
@@ -103,6 +132,8 @@ def train():
 
         if epoch % disp_it == 0:
 
+            acc, recall, prec = get_accuracy(y_tgt_c, y_class)
+            print("training sample accuracy/recall/precision = {:.3f}/{:.3f}/{:.3f}".format(acc,recall,prec))
             print("smooth loss at epoch {}: {:.3e}, time elapsed total: {:.2e} epoch: {:.2e}"\
                     .format(epoch, smooth_loss, t3-t0, t3-t1))
             print("depth, auto, seg, classification smooth losses: \n", smooth_losses)
