@@ -211,7 +211,7 @@ class MyTempAgent(Agent, nn.Module):
 
     def act(self, observations):
 
-        img_input = torch.Tensor(observations['rgb'].copy()[np.newaxis,...]).reshape(1,3,480,640)
+        img_input = torch.Tensor(observations['rgb'].copy()[np.newaxis,:,:,0:3]).permute(0,3,1,2) #reshape(1,3,480,640)
 
         target_str = observations['object_goal']
 
