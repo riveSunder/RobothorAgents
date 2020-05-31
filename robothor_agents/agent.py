@@ -179,6 +179,16 @@ class MyTempAgent(Agent, nn.Module):
     def reset(self):
         pass
 
+    def pre_process(self, x, norm_max = 255.0):
+        # for now just scale the images down to a friendlier size
+        # 
+        x = F.avg_pool2d(x, 2)
+
+        if norm_max is not None:
+            x /= norm_max
+
+        return x
+
     def forward(self, x, one_hot=None, device=None):
         if device is not None:
             if x.device.type != device:
@@ -194,23 +204,29 @@ class MyTempAgent(Agent, nn.Module):
             x = torch.cat((x, one_hot), dim=1)
         x = self.dense_layers(x)
 
+        #x = torch.nn.functional.softmax(x)
+
         # x is the value of each 
         return x
 
     def act(self, observations):
+
         img_input = torch.Tensor(observations['rgb'].copy()[np.newaxis,...]).reshape(1,3,480,640)
 
         target_str = observations['object_goal']
 
         target_one_hot = torch.Tensor(\
-                np.array([1.0 if target_str in elem else 0.0 for elem in self.possible_targets]))\
+                np.array([1.0 if "".join(target_str.split()).lower() in "".join(elem.split()).lower() else 0.0 \
+                for elem in self.possible_targets]))\
                 .reshape(1,12)
 
-
+        prepro = self.pre_process(img_input)
         # get action from forward policy
-        softmax_logits = self.forward(img_input, target_one_hot)
+        softmax_logits = self.forward(prepro, target_one_hot)
 
-        act = self.possible_actions[torch.argmax(softmax_logits)]
+        #act = self.possible_actions[torch.argmax(softmax_logits)]
+        act = np.random.choice(self.possible_actions, \
+                p=torch.nn.functional.softmax(softmax_logits).detach().cpu().numpy().squeeze())
 
         return act
 
