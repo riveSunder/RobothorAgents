@@ -135,7 +135,7 @@ class RobothorChallengeEnv(RobothorChallenge):
             #print('Target object visible!!!')
 
         # reward for keeping on
-        reward -= 0.001
+        #reward -= 0.001
 
         done = stopped or self.total_steps >= self.config['max_steps']
 

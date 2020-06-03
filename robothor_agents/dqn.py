@@ -32,7 +32,7 @@ class DQN():
         self.use_rnd = use_rnd
 
         if self.use_rnd:
-            self.rnd_scale = 1e-1
+            self.rnd_scale = 2.0
             self.rnd = RandomNetwork()
 
         self.possible_targets = ['Alarm Clock', \
