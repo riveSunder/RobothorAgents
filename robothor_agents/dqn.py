@@ -52,12 +52,12 @@ class DQN():
         self.lr = 3e-4
         self.batch_size = 64
         self.buffer_size = 1024
-        self.epsilon_decay = 0.75
-        self.starting_epsilon = 0.99
+        self.epsilon_decay = 0.95
+        self.starting_epsilon = 0.25
         self.epsilon = self.starting_epsilon * 1.0
         self.min_epsilon = 0.05
         self.update_qt_every = 10
-        self.gamma = 0.95
+        self.gamma = 0.975
 
         # flags for gathering off-task training frames
         self.get_depth_frame = True
@@ -326,7 +326,7 @@ class DQN():
 
                 dir_list = os.listdir("./data")
                 len_dir_list = len(dir_list)
-                num_samples = 30
+                num_samples = min(len_dir_list, 20)
 
                 # train on a sample of all previous experience each time
                 t2 = time.time()
@@ -438,8 +438,8 @@ def mantle(args):
     env = RobothorChallengeEnv(agent=agent)
     dqn = DQN(env, agent_fn, use_rnd=True)
 
-    dqn.q.load_state_dict(torch.load("./my_dqn_temp.pt"))
-    dqn.qt.load_state_dict(torch.load("./my_dqn_temp.pt"))
+    dqn.q.load_state_dict(torch.load("./my_dqn_temp.pt", map_location=torch.device("cpu")))
+    dqn.qt.load_state_dict(torch.load("./my_dqn_temp.pt", map_location=torch.device("cpu")))
 
     # run rollouts and training in parallel, 
     # number of training epochs between qt updates = num_workers

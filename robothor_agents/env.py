@@ -183,9 +183,6 @@ class RobothorChallengeEnv(RobothorChallenge):
 
                     advice = "MoveAhead"
 
-                elif not(my_object["visible"]) and my_object["distance"] < 1.5:
-
-                    advice = "RotateRight" 
 
         return advice
 
